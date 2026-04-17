@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc/client";
 import Link from "next/link";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 import { PASSWORD_RULES } from "@/lib/validation/password";
+import { validateEmail } from "@/lib/validation/email";
 
 type SignupFormData = {
   email: string;
@@ -39,6 +40,8 @@ export default function SignupPage() {
   const signupMutation = trpc.auth.signup.useMutation();
 
   const password = watch("password");
+  const emailValue = watch("email") ?? "";
+  const emailValidation = validateEmail(emailValue);
 
   const nextStep = async () => {
     let fieldsToValidate: (keyof SignupFormData)[] = [];
@@ -85,15 +88,24 @@ export default function SignupPage() {
                 <input
                   {...register("email", {
                     required: "Email is required",
-                    pattern: {
-                      value: /^\S+@\S+$/i,
-                      message: "Invalid email address",
-                    },
+                    // VAL-201: match server Zod + show normalization / typo hints from validateEmail().
+                    validate: (value) =>
+                      validateEmail(value ?? "").isValid || "Please enter a valid email address",
                   })}
                   type="email"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />
                 {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+                {emailValidation.typoWarning && (
+                  <p className="mt-1 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+                    {emailValidation.typoWarning}
+                  </p>
+                )}
+                {emailValidation.isValid && emailValidation.wasNormalized && (
+                  <p className="mt-1 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-md px-2 py-1.5">
+                    Your email has been normalized to lowercase: {emailValidation.normalized}
+                  </p>
+                )}
               </div>
 
               <div>

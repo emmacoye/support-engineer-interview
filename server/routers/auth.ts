@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { decryptSSN, encryptSSN } from "@/lib/crypto";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 import { validatePassword } from "@/lib/validation/password";
+import { zodEmail } from "@/lib/validation/email";
 import { getSessionCookieToken } from "@/lib/session";
 
 export const authRouter = router({
@@ -16,7 +17,8 @@ export const authRouter = router({
     .input(
       z
         .object({
-          email: z.string().email().toLowerCase(),
+          // VAL-201: strict format + always lowercase before persistence (same rules as client).
+          email: zodEmail(),
           password: z.string(),
           firstName: z.string().min(1),
           lastName: z.string().min(1),
@@ -108,7 +110,8 @@ export const authRouter = router({
   login: publicProcedure
     .input(
       z.object({
-        email: z.string().email().transform((e) => e.trim().toLowerCase()),
+        // VAL-201: same validation as signup; normalize so uppercase login matches lowercase rows.
+        email: zodEmail(),
         password: z.string(),
       })
     )

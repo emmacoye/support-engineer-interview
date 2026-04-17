@@ -195,3 +195,18 @@ validation (amount > 0) in the Zod schema with a clear error message returned
 to the client.
 **Status**: Core fix confirmed working. Error message clarity is a minor 
 improvement opportunity.
+
+## VAL-201: Email Validation Problems
+**Priority**: High
+**Root Cause**: Email validation used a basic regex that missed invalid formats. Uppercase emails were silently converted to lowercase without notifying the user, creating confusion when they tried to log in. No detection existed for common TLD typos like .con or .cmo that would result in undeliverable emails.
+**Fix**: Implemented a comprehensive validateEmail() utility that normalizes to lowercase with a visible notification, validates format with a robust regex, and warns on common TLD typos. Warnings are non-blocking to avoid frustrating users with valid but unusual emails. Normalization is enforced server-side on all DB writes and login lookups.
+**Prevention**: Email normalization should always be visible to the user — silent data transformation erodes trust. TLD typo detection prevents support tickets from users who cannot receive verification emails. Define email validation once in a shared utility and reuse it across all auth touch points.
+
+## Pass Criteria
+- [ ] TEST@example.com is accepted but normalized to test@example.com with a visible notice
+- [ ] user@example.con shows a typo warning suggesting user@example.com
+- [ ] invalid-email is rejected with a clear error message
+- [ ] valid@email.com is accepted with no warnings
+- [ ] Email is stored as lowercase in the DB regardless of input case
+- [ ] Login works with uppercase input for an account registered with lowercase email
+- [ ] Validation fires on both the form and the tRPC handler

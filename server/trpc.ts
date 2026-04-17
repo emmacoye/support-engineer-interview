@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { sessions, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptSSN } from "@/lib/crypto";
+import { isSessionValidByExpiry } from "@/lib/session";
 
 export async function createContext(opts: CreateNextContextOptions | FetchCreateContextFnOptions) {
   // Handle different adapter types
@@ -64,15 +65,12 @@ export async function createContext(opts: CreateNextContextOptions | FetchCreate
         userRow &&
         session.userId === decoded.userId &&
         userRow.id === session.userId &&
-        new Date(session.expiresAt) > new Date()
+        // PERF-403: require expiry at least SESSION_EXPIRY_BUFFER_MS in the future (server-side; never trust client).
+        isSessionValidByExpiry(session.expiresAt)
       ) {
         user = userRow;
         // SEC-301: decrypt SSN after reading from DB so downstream code uses plaintext values.
         user = { ...user, ssn: decryptSSN(user.ssn) };
-        const expiresIn = new Date(session.expiresAt).getTime() - new Date().getTime();
-        if (expiresIn < 60000) {
-          console.warn("Session about to expire");
-        }
       }
     } catch (error) {
       // Invalid token

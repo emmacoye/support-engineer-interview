@@ -115,3 +115,15 @@
 - [ ] Transaction history query is noticeably faster with 50+ records
 - [ ] All existing functionality works correctly after changes
 
+## PERF-403: Session Expiry Buffer Missing
+**Priority**: High
+**Root Cause**: Session validity was checked with an exact timestamp comparison (`expiresAt > now`), meaning a session was considered valid right up until the millisecond it expired. This created a narrow but real window where an attacker with a captured session token could use it even as it was expiring.
+**Fix**: Added a 60 second buffer constant (`SESSION_EXPIRY_BUFFER_MS`) to the session validity check. Sessions expiring within the next 60 seconds are now treated as already expired, closing the window near expiration.
+**Prevention**: Session expiry checks should always include a buffer. Define the buffer as a named constant so it is easy to audit and adjust. Never use exact timestamp comparisons for security-sensitive time checks.
+
+## Pass Criteria
+- [ ] A session with more than 60 seconds remaining is accepted
+- [ ] A session with less than 60 seconds remaining is rejected
+- [ ] A fully expired session is rejected
+- [ ] Valid sessions well within expiry work normally across all protected routes
+

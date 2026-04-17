@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
 import { validateCard } from "@/lib/validation/card";
+import { validateRoutingNumber } from "@/lib/validation/routing";
 
 interface FundingModalProps {
   accountId: number;
@@ -48,7 +49,8 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
         fundingSource: {
           type: data.fundingType,
           accountNumber: data.accountNumber,
-          routingNumber: data.routingNumber,
+          // VAL-207: only bank sends routing; trim so server Zod sees a clean 9-digit string.
+          routingNumber: data.fundingType === "bank" ? data.routingNumber?.trim() : undefined,
         },
       });
 
@@ -134,8 +136,9 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
                 validate: {
                   validCard: (value) => {
                     if (fundingType !== "card") return true;
-                    // VAL-206: enforce Luhn + card-type detection client-side so obvious invalid cards never reach the server.
-                    return validateCard(value).ok || "Please enter a valid card number";
+                    // VAL-206 / VAL-210: Luhn + full BIN-range card type; unsupported brands get a specific message.
+                    const result = validateCard(value);
+                    return result.ok || result.message;
                   },
                 },
               })}
@@ -151,10 +154,14 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
               <label className="block text-sm font-medium text-gray-700">Routing Number</label>
               <input
                 {...register("routingNumber", {
-                  required: "Routing number is required",
-                  pattern: {
-                    value: /^\d{9}$/,
-                    message: "Routing number must be 9 digits",
+                  // VAL-207: ACH cannot run without a valid ABA routing number — require, length-check, then checksum (same as server).
+                  validate: (value) => {
+                    if (fundingType !== "bank") return true;
+                    const v = (value ?? "").trim();
+                    if (!v) return "Routing number is required";
+                    if (!/^\d{9}$/.test(v)) return "Routing number must be 9 digits";
+                    if (!validateRoutingNumber(v)) return "Invalid routing number";
+                    return true;
                   },
                 })}
                 type="text"

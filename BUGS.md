@@ -152,3 +152,34 @@
 - [ ] Running account creation 10 times produces 10 different account numbers
 - [ ] Account numbers are numeric only, no letters or special characters
 
+## VAL-210: Incomplete Card Type Detection
+**Priority**: High
+**Root Cause**: Card type detection only checked single digit prefixes (e.g. "4" for Visa, "5" for Mastercard), missing the full prefix ranges required for accurate detection. This caused valid Mastercard 2-series cards, Discover cards, JCB, Diners Club, and UnionPay cards to be incorrectly rejected or misidentified.
+**Fix**: Replaced basic prefix checks with comprehensive regex patterns covering all valid prefix ranges for Visa, Mastercard (including 2221-2720 range), Amex, Discover, JCB, Diners Club, and UnionPay. Unknown card types are explicitly rejected with a clear error message.
+**Prevention**: Card network prefix ranges change over time — Mastercard added the 2-series range in 2017 as a recent example. Card type detection logic should be treated as living documentation and reviewed against current network specs periodically.
+
+## Pass Criteria
+- [ ] `4111111111111111` detected as Visa
+- [ ] `5500005555555559` detected as Mastercard
+- [ ] `2221000000000009` detected as Mastercard (2-series range)
+- [ ] `378282246310005` detected as Amex
+- [ ] `6011111111111117` detected as Discover
+- [ ] `3530111333300000` detected as JCB
+- [ ] `30569309025904` detected as Diners Club
+- [ ] `1234567890123456` rejected as unknown card type
+- [ ] All detected card types pass through to Luhn validation
+
+## VAL-207: Routing Number Not Required for Bank Transfers
+**Priority**: High
+**Root Cause**: The routing number field was marked as optional in both the React Hook Form schema and the tRPC Zod schema, allowing bank transfer submissions with no routing number. No ABA checksum validation existed to catch invalid routing numbers that were provided.
+**Fix**: Made routing number required when payment method is bank transfer on both client and server. Added ABA checksum validation to reject routing numbers that are not exactly 9 digits or fail the checksum algorithm.
+**Prevention**: Payment method specific fields should always be conditionally required based on the selected method. Financial identifiers like routing numbers have standard checksum algorithms that should always be validated — never treat them as free text strings.
+
+## Pass Criteria
+- [ ] Submitting a bank transfer without a routing number is rejected
+- [ ] Routing number shorter or longer than 9 digits is rejected
+- [ ] Invalid ABA checksum is rejected (e.g. 123456789)
+- [ ] Valid routing number passes (e.g. 021000021 — Chase Bank ABA)
+- [ ] Card payments are unaffected — no routing number required
+- [ ] Clear error message shown when routing number is missing or invalid
+

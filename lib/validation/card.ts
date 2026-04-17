@@ -1,9 +1,20 @@
-export type CardType = "visa" | "mastercard" | "amex" | "discover";
+export type CardType =
+  | "visa"
+  | "mastercard"
+  | "amex"
+  | "discover"
+  | "dinersclub"
+  | "jcb"
+  | "unionpay"
+  | "unknown";
+
+/** Card brands we accept for funding (excludes `unknown`). */
+export type SupportedCardType = Exclude<CardType, "unknown">;
 
 export function normalizeCardNumber(input: string): string {
   // We intentionally only strip user-friendly separators (spaces/dashes) before validation.
   // Any other non-digit characters should cause validation to fail rather than being silently ignored.
-  return input.replace(/[ -]/g, "");
+  return input.replace(/[\s-]/g, "");
 }
 
 function luhn(cardNumber: string): boolean {
@@ -26,51 +37,69 @@ function isAllDigits(value: string): boolean {
   return /^\d+$/.test(value);
 }
 
-export function detectCardType(normalizedDigits: string): CardType | null {
-  if (!isAllDigits(normalizedDigits)) return null;
+/**
+ * VAL-210: BIN ranges are multi-digit and change over time (e.g. Mastercard 2221–2720).
+ * We match full IIN patterns — not a single leading digit — then fall back to `unknown`.
+ */
+export function detectCardType(cardNumber: string): CardType {
+  const num = normalizeCardNumber(cardNumber).trim();
+  if (!isAllDigits(num)) return "unknown";
 
-  const len = normalizedDigits.length;
+  const patterns: { type: SupportedCardType; pattern: RegExp }[] = [
+    { type: "amex", pattern: /^3[47][0-9]{13}$/ },
+    { type: "dinersclub", pattern: /^3(?:0[0-5]|[68][0-9])[0-9]{11}$/ },
+    // Discover before UnionPay — both use 62…; only 622126–622925 (among 62…) is Discover here.
+    {
+      type: "discover",
+      pattern:
+        /^6(?:011\d{12}|5[0-9]{14}|4[4-9]\d{13}|622(?:12[6-9]|1[3-9]\d|[2-8]\d{2}|9[01]\d|92[0-5])\d{10})$/,
+    },
+    {
+      type: "jcb",
+      pattern:
+        /^(?:(?:2131|1800)\d{11}|35(?:2[89]|[3-8]\d|9[0-8])\d{12})$/,
+    },
+    {
+      type: "mastercard",
+      pattern:
+        /^(?:5[1-5][0-9]{14}|2(?:2[2-9][1-9]|[3-6]\d{2}|7[01]\d|720)[0-9]{12})$/,
+    },
+    { type: "unionpay", pattern: /^62[0-9]{14,17}$/ },
+    { type: "visa", pattern: /^4[0-9]{12}(?:[0-9]{3})?$/ },
+  ];
 
-  // Visa: starts with 4, 13 or 16 digits
-  if (normalizedDigits.startsWith("4") && (len === 13 || len === 16)) return "visa";
-
-  // Amex: starts with 34 or 37, 15 digits
-  if (len === 15 && (normalizedDigits.startsWith("34") || normalizedDigits.startsWith("37"))) return "amex";
-
-  // Mastercard: starts with 51-55 or 2221-2720, 16 digits
-  if (len === 16) {
-    const firstTwo = Number(normalizedDigits.slice(0, 2));
-    if (firstTwo >= 51 && firstTwo <= 55) return "mastercard";
-
-    const firstFour = Number(normalizedDigits.slice(0, 4));
-    if (firstFour >= 2221 && firstFour <= 2720) return "mastercard";
+  for (const { type, pattern } of patterns) {
+    if (pattern.test(num)) return type;
   }
-
-  // Discover: starts with 6011, 622126-622925, 644-649, or 65, 16 digits
-  if (len === 16) {
-    if (normalizedDigits.startsWith("6011")) return "discover";
-    if (normalizedDigits.startsWith("65")) return "discover";
-
-    const firstThree = Number(normalizedDigits.slice(0, 3));
-    if (firstThree >= 644 && firstThree <= 649) return "discover";
-
-    const firstSix = Number(normalizedDigits.slice(0, 6));
-    if (firstSix >= 622126 && firstSix <= 622925) return "discover";
-  }
-
-  return null;
+  return "unknown";
 }
 
-export function validateCard(cardNumber: string): { ok: true; type: CardType; normalized: string } | { ok: false } {
+export type ValidateCardResult =
+  | { ok: true; type: SupportedCardType; normalized: string }
+  | { ok: false; message: string };
+
+export function validateCard(cardNumber: string): ValidateCardResult {
   const normalized = normalizeCardNumber(cardNumber).trim();
-  if (normalized.length === 0) return { ok: false };
-  if (!isAllDigits(normalized)) return { ok: false };
+  if (normalized.length === 0) {
+    return { ok: false, message: "Please enter a valid card number" };
+  }
+  if (!isAllDigits(normalized)) {
+    return { ok: false, message: "Please enter a valid card number" };
+  }
 
+  // VAL-210: known network vs unknown is independent of VAL-206 Luhn — reject unsupported brands first.
   const type = detectCardType(normalized);
-  if (!type) return { ok: false };
+  if (type === "unknown") {
+    return {
+      ok: false,
+      message:
+        "Unsupported card type. Use Visa, Mastercard, American Express, Discover, Diners Club, JCB, or UnionPay.",
+    };
+  }
 
-  if (!luhn(normalized)) return { ok: false };
+  if (!luhn(normalized)) {
+    return { ok: false, message: "Please enter a valid card number" };
+  }
 
   return { ok: true, type, normalized };
 }
-

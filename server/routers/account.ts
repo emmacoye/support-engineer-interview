@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { validateCard } from "@/lib/validation/card";
+import { validateRoutingNumber } from "@/lib/validation/routing";
 import { centsFromDb, OPENING_BALANCE_DOLLARS, toCents } from "@/lib/currency";
 import { generateAccountNumber } from "@/lib/account-number";
 
@@ -81,14 +82,42 @@ export const accountRouter = router({
             routingNumber: z.string().optional(),
           })
           .superRefine((value, ctx) => {
-            if (value.type !== "card") return;
+            if (value.type === "card") {
+              // VAL-206 / VAL-210: server-side Luhn + BIN-range card type (same as client).
+              const cardResult = validateCard(value.accountNumber);
+              if (!cardResult.ok) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ["accountNumber"],
+                  message: cardResult.message,
+                });
+              }
+              return;
+            }
 
-            // VAL-206: server-side enforcement (same shared logic as client) so invalid cards can't bypass UI validation.
-            if (!validateCard(value.accountNumber).ok) {
+            // VAL-207: bank ACH requires a 9-digit routing number that passes ABA checksum (client mirrors this).
+            const routing = (value.routingNumber ?? "").trim();
+            if (!routing) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                path: ["accountNumber"],
-                message: "Please enter a valid card number",
+                path: ["routingNumber"],
+                message: "Routing number is required",
+              });
+              return;
+            }
+            if (!/^\d{9}$/.test(routing)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["routingNumber"],
+                message: "Routing number must be 9 digits",
+              });
+              return;
+            }
+            if (!validateRoutingNumber(routing)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["routingNumber"],
+                message: "Invalid routing number",
               });
             }
           }),

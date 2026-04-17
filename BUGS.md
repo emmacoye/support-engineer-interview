@@ -16,3 +16,19 @@
 **Fix**: Added an 18-year minimum age check and a 120-year maximum age check on both the client (React Hook Form) and server (Zod refine). Future dates are also explicitly rejected. A clear error message is shown to the user when validation fails.
 **Prevention**: Any field with compliance implications (age, SSN format, address) should have explicit boundary validation on both client and server from the start. Never rely on the DB or UI alone to enforce compliance rules — Zod schemas should be the single source of truth for input contracts.
 
+## VAL-206: Card Number Validation
+**Priority**: Critical
+**Root Cause**: The card number field only checked that the input was a non-empty string of digits, with no checksum or format validation. Any sequence of numbers was accepted, leading to failed transactions when invalid card numbers reached the payment processor.
+**Fix**: Implemented the Luhn algorithm for checksum validation and added card type detection based on number prefixes (Visa, Mastercard, Amex, Discover). Spaces and dashes are stripped before validation. Validation is enforced on both the client (React Hook Form) and server (Zod refine).
+**Prevention**: Payment field validation should always include Luhn as a minimum bar. Consider abstracting all payment validation into a shared utility and covering it with unit tests since it is both security-sensitive and easy to regression-break.
+
+## Pass Criteria
+- [ ] `4111111111111111` (valid Visa test number) is accepted
+- [ ] `4111111111111112` (invalid checksum) is rejected
+- [ ] `1234567890123456` (invalid prefix and checksum) is rejected
+- [ ] `378282246310005` (valid Amex test number) is accepted
+- [ ] `5500005555555559` (valid Mastercard test number) is accepted
+- [ ] Card numbers with spaces (e.g. `4111 1111 1111 1111`) are accepted after stripping
+- [ ] Empty or too-short inputs are rejected with a clear error message
+- [ ] Validation fires on both the form and the tRPC handler
+

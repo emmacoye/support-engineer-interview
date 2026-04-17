@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
+import { validateCard } from "@/lib/validation/card";
 
 interface FundingModalProps {
   accountId: number;
@@ -50,8 +51,12 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
       });
 
       onSuccess();
-    } catch (err: any) {
-      setError(err.message || "Failed to fund account");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" && err !== null && "message" in err && typeof (err as { message: unknown }).message === "string"
+          ? (err as { message: string }).message
+          : "Failed to fund account";
+      setError(message);
     }
   };
 
@@ -112,14 +117,19 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
             <input
               {...register("accountNumber", {
                 required: `${fundingType === "card" ? "Card" : "Account"} number is required`,
-                pattern: {
-                  value: fundingType === "card" ? /^\d{16}$/ : /^\d+$/,
-                  message: fundingType === "card" ? "Card number must be 16 digits" : "Invalid account number",
-                },
+                pattern:
+                  // Keep the existing bank account digits-only constraint unchanged to avoid impacting funding flows.
+                  fundingType === "bank"
+                    ? {
+                        value: /^\d+$/,
+                        message: "Invalid account number",
+                      }
+                    : undefined,
                 validate: {
                   validCard: (value) => {
                     if (fundingType !== "card") return true;
-                    return value.startsWith("4") || value.startsWith("5") || "Invalid card number";
+                    // VAL-206: enforce Luhn + card-type detection client-side so obvious invalid cards never reach the server.
+                    return validateCard(value).ok || "Please enter a valid card number";
                   },
                 },
               })}

@@ -4,6 +4,7 @@ import { protectedProcedure, router } from "../trpc";
 import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { validateCard } from "@/lib/validation/card";
 
 function generateAccountNumber(): string {
   return Math.floor(Math.random() * 1000000000)
@@ -78,11 +79,24 @@ export const accountRouter = router({
       z.object({
         accountId: z.number(),
         amount: z.number().positive(),
-        fundingSource: z.object({
-          type: z.enum(["card", "bank"]),
-          accountNumber: z.string(),
-          routingNumber: z.string().optional(),
-        }),
+        fundingSource: z
+          .object({
+            type: z.enum(["card", "bank"]),
+            accountNumber: z.string(),
+            routingNumber: z.string().optional(),
+          })
+          .superRefine((value, ctx) => {
+            if (value.type !== "card") return;
+
+            // VAL-206: server-side enforcement (same shared logic as client) so invalid cards can't bypass UI validation.
+            if (!validateCard(value.accountNumber).ok) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["accountNumber"],
+                message: "Please enter a valid card number",
+              });
+            }
+          }),
       })
     )
     .mutation(async ({ input, ctx }) => {

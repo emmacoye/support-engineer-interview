@@ -49,3 +49,16 @@
 - [ ] Login form is unaffected — no complexity check on login
 - [ ] Validation fires on both the form and the tRPC handler
 
+## PERF-401: Account Creation Error Shows Incorrect Balance
+**Priority**: Critical
+**Root Cause**: When the database operation for account creation failed, the error was either silently swallowed and a default $100 balance returned, or the UI was optimistically updated before DB confirmation. This caused the UI to display a $100 balance for an account that was never actually created.
+**Fix**: Wrapped the DB insert in a proper try/catch and throw a tRPC error on failure. Removed any optimistic balance updates — the $100 balance is only displayed after a confirmed successful DB write. The client now correctly handles the error state and shows a user-friendly failure message.
+**Prevention**: Never return default values from a catch block in a financial context — always throw. Optimistic UI updates are acceptable for non-critical state but should never be used for financial balances. DB operations that create or modify financial records should always be wrapped in transactions so partial writes are rolled back automatically.
+
+## Pass Criteria
+- [ ] Happy path: account creation succeeds, $100 balance is shown
+- [ ] Failure path: simulate a DB failure (e.g. disconnect DB or force an error) and confirm no balance is shown
+- [ ] Error message is displayed to the user when account creation fails
+- [ ] No $100 balance appears in the UI without a confirmed DB write
+- [ ] tRPC handler throws a proper error on DB failure, not a default value
+

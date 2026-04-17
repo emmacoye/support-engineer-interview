@@ -21,8 +21,9 @@ export function AccountCreationModal({ onClose, onSuccess }: AccountCreationModa
     try {
       await createAccountMutation.mutateAsync({ accountType });
       onSuccess();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create account");
+    } catch {
+      // PERF-401: show a user-friendly error and never imply a successful $100 opening balance on failure.
+      setError("Account creation failed. Please try again.");
     }
   };
 

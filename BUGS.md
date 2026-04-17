@@ -183,3 +183,15 @@
 - [ ] Card payments are unaffected — no routing number required
 - [ ] Clear error message shown when routing number is missing or invalid
 
+## VAL-205: Zero Amount Funding
+**Priority**: High
+**Root Cause**: No minimum amount validation on the funding form allowed $0.00 
+submissions to create unnecessary transaction records.
+**Fix**: Confirmed $0.00 is blocked on both client and server. Server returns a 
+500 error on $0 submission — validation exists but error handling could be improved 
+to return a cleaner 400 with a user-friendly message rather than a 500.
+**Prevention**: Amount fields should always have an explicit minimum value 
+validation (amount > 0) in the Zod schema with a clear error message returned 
+to the client.
+**Status**: Core fix confirmed working. Error message clarity is a minor 
+improvement opportunity.

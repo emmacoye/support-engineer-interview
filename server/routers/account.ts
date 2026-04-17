@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { validateCard } from "@/lib/validation/card";
-import { centsFromDb, toCents } from "@/lib/currency";
+import { centsFromDb, OPENING_BALANCE_DOLLARS, toCents } from "@/lib/currency";
 
 function generateAccountNumber(): string {
   return Math.floor(Math.random() * 1000000000)
@@ -46,12 +46,12 @@ export const accountRouter = router({
       }
 
       try {
-        // PERF-406: $100 opening balance stored as integer cents (10_000), not dollar floats.
+        // PERF-406: opening credit is defined in dollars; convert to cents only at write (never toCents on DB reads).
         await db.insert(accounts).values({
           userId: ctx.user.id,
           accountNumber: accountNumber!,
           accountType: input.accountType,
-          balance: toCents(100),
+          balance: toCents(OPENING_BALANCE_DOLLARS),
           status: "active",
         });
 
@@ -143,6 +143,7 @@ export const accountRouter = router({
         .limit(1)
         .get();
 
+      // PERF-406: `account.balance` is already integer cents from DB (after migration); never wrap with toCents().
       const balanceCents = centsFromDb(account.balance);
       const newBalanceCents = balanceCents + amountCents;
 

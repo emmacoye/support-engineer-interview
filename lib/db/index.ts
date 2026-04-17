@@ -9,6 +9,35 @@ export const db = drizzle(sqlite, { schema });
 
 const connections: Database.Database[] = [];
 
+/**
+ * PERF-406: Legacy rows stored balances/amounts in **dollars** (e.g. 120 = $120). New code stores **cents**.
+ * One-time migration multiplies existing rows by 100 when the DB already had accounts (non-empty upgrade).
+ * Empty DB: record migration without multiplying so new signups are not double-converted.
+ * Mixed legacy + already-cent rows: delete `bank.db` or restore from backup — see BUGS.md.
+ */
+function runPerf406DollarsToCentsMigration(raw: Database.Database) {
+  raw.exec(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id TEXT PRIMARY KEY NOT NULL
+    );
+  `);
+
+  const applied = raw.prepare("SELECT 1 AS ok FROM _migrations WHERE id = ?").get("perf406_dollars_to_cents");
+  if (applied) return;
+
+  const row = raw.prepare("SELECT COUNT(*) AS count FROM accounts").get() as { count: number };
+  const accountCount = row?.count ?? 0;
+
+  if (accountCount > 0) {
+    raw.exec(`
+      UPDATE accounts SET balance = ROUND(COALESCE(balance, 0) * 100);
+      UPDATE transactions SET amount = ROUND(COALESCE(amount, 0) * 100);
+    `);
+  }
+
+  raw.prepare("INSERT INTO _migrations (id) VALUES (?)").run("perf406_dollars_to_cents");
+}
+
 export function initDb() {
   const conn = new Database(dbPath);
   connections.push(conn);
@@ -60,6 +89,8 @@ export function initDb() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  runPerf406DollarsToCentsMigration(sqlite);
 }
 
 // Initialize database on import

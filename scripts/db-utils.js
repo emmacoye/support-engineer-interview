@@ -54,6 +54,8 @@ if (command === "list-users") {
   execIgnoreMissing("DELETE FROM transactions");
   execIgnoreMissing("DELETE FROM accounts");
   execIgnoreMissing("DELETE FROM users");
+  // PERF-406: allow migration to run again on next boot if a restored legacy bank.db needs conversion.
+  execIgnoreMissing("DELETE FROM _migrations");
   console.log("Database cleared!");
 } else if (command === "delete-user") {
   const email = process.argv[3];

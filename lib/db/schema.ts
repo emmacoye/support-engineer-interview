@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 export const users = sqliteTable("users", {
@@ -58,12 +58,19 @@ export const transactions = sqliteTable(
   })
 );
 
-export const sessions = sqliteTable("sessions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: integer("user_id")
-    .references(() => users.id)
-    .notNull(),
-  token: text("token").unique().notNull(),
-  expiresAt: text("expires_at").notNull(),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .references(() => users.id)
+      .notNull(),
+    token: text("token").unique().notNull(),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => ({
+    // SEC-304: at most one session row per user at the DB layer (prevents races / stale builds from stacking tokens).
+    userIdUnique: uniqueIndex("sessions_user_id_unique").on(t.userId),
+  })
+);

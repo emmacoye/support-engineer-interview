@@ -2,13 +2,14 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, router } from "../trpc";
+import { publicProcedure, protectedProcedure, router } from "../trpc";
 import { db } from "@/lib/db";
 import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptSSN, encryptSSN } from "@/lib/crypto";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 import { validatePassword } from "@/lib/validation/password";
+import { getSessionCookieToken } from "@/lib/session";
 
 export const authRouter = router({
   signup: publicProcedure
@@ -85,6 +86,8 @@ export const authRouter = router({
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
+      // SEC-304: invalidate then create session (sequential sync Drizzle calls — better-sqlite3 rejects async transaction callbacks).
+      await db.delete(sessions).where(eq(sessions.userId, user.id));
       await db.insert(sessions).values({
         userId: user.id,
         token,
@@ -105,7 +108,7 @@ export const authRouter = router({
   login: publicProcedure
     .input(
       z.object({
-        email: z.string().email(),
+        email: z.string().email().transform((e) => e.trim().toLowerCase()),
         password: z.string(),
       })
     )
@@ -135,6 +138,8 @@ export const authRouter = router({
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
+      // SEC-304: delete all sessions for this user_id first, then insert the new row (sync driver; UNIQUE(user_id) still caps duplicates in DB).
+      await db.delete(sessions).where(eq(sessions.userId, user.id));
       await db.insert(sessions).values({
         userId: user.id,
         token,
@@ -152,21 +157,10 @@ export const authRouter = router({
     }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
-    if (ctx.user) {
-      // Delete session from database
-      let token: string | undefined;
-      if ("cookies" in ctx.req) {
-        token = (ctx.req as any).cookies.session;
-      } else {
-        const cookieHeader = ctx.req.headers.get?.("cookie") || (ctx.req.headers as any).cookie;
-        token = cookieHeader
-          ?.split("; ")
-          .find((c: string) => c.startsWith("session="))
-          ?.split("=")[1];
-      }
-      if (token) {
-        await db.delete(sessions).where(eq(sessions.token, token));
-      }
+    // SEC-304: always revoke the cookie's session row in DB when present (do not require ctx.user — JWT may still verify after row was deleted elsewhere).
+    const token = getSessionCookieToken(ctx.req);
+    if (token) {
+      await db.delete(sessions).where(eq(sessions.token, token));
     }
 
     if ("setHeader" in ctx.res) {
@@ -175,6 +169,19 @@ export const authRouter = router({
       (ctx.res as Headers).set("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
     }
 
-    return { success: true, message: ctx.user ? "Logged out successfully" : "No active session" };
+    return { success: true, message: token ? "Logged out successfully" : "No active session" };
+  }),
+
+  logoutAllDevices: protectedProcedure.mutation(async ({ ctx }) => {
+    // SEC-304: server-side revoke every session for this user (JWT alone is never enough — rows must disappear).
+    await db.delete(sessions).where(eq(sessions.userId, ctx.user.id));
+
+    if ("setHeader" in ctx.res) {
+      ctx.res.setHeader("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+    } else {
+      (ctx.res as Headers).set("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+    }
+
+    return { success: true as const, message: "Signed out of all devices" };
   }),
 });

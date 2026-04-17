@@ -1,3 +1,20 @@
+/** Read `session` cookie from Next/tRPC `req` (Pages `cookies` / `headers.cookie`, or Fetch `headers.get("cookie")`). */
+export function getSessionCookieToken(req: unknown): string | undefined {
+  const r = req as { cookies?: { session?: string }; headers?: { cookie?: string; get?: (n: string) => string } };
+  if (r?.cookies?.session) return r.cookies.session;
+  const hdr = r?.headers;
+  const cookieHeader =
+    hdr?.cookie ?? (typeof hdr?.get === "function" ? hdr.get("cookie") || "" : "");
+  // RFC 6265 allows `;` with or without a following space — `; ` only misses `a=1;session=...`.
+  for (const segment of cookieHeader.split(";")) {
+    const trimmed = segment.trim();
+    if (trimmed.startsWith("session=")) {
+      return trimmed.slice("session=".length) || undefined;
+    }
+  }
+  return undefined;
+}
+
 /**
  * PERF-403: Treat sessions as expired slightly before wall-clock expiry so near-death tokens
  * are not accepted (reduces hijack window at the boundary). Server-side only.

@@ -16,9 +16,15 @@ export default function DashboardPage() {
 
   const { data: accounts, refetch: refetchAccounts } = trpc.account.getAccounts.useQuery();
   const logoutMutation = trpc.auth.logout.useMutation();
+  const logoutAllDevicesMutation = trpc.auth.logoutAllDevices.useMutation();
 
   const handleLogout = async () => {
     await logoutMutation.mutateAsync();
+    router.push("/");
+  };
+
+  const handleLogoutAllDevices = async () => {
+    await logoutAllDevicesMutation.mutateAsync();
     router.push("/");
   };
 
@@ -31,10 +37,20 @@ export default function DashboardPage() {
             <div className="flex items-center">
               <h1 className="text-xl font-semibold">SecureBank Dashboard</h1>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
               <button
+                type="button"
+                onClick={handleLogoutAllDevices}
+                disabled={logoutAllDevicesMutation.isPending}
+                className="px-3 py-2 text-sm font-medium text-amber-800 hover:text-amber-900 border border-amber-300 rounded-md disabled:opacity-50"
+              >
+                {logoutAllDevicesMutation.isPending ? "…" : "Sign out all devices"}
+              </button>
+              <button
+                type="button"
                 onClick={handleLogout}
-                className="ml-4 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                disabled={logoutMutation.isPending}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50"
               >
                 Sign Out
               </button>

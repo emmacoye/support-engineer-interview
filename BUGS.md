@@ -127,3 +127,16 @@
 - [ ] A fully expired session is rejected
 - [ ] Valid sessions well within expiry work normally across all protected routes
 
+## SEC-304: Multiple Valid Sessions Per User
+**Priority**: High
+**Root Cause**: The login flow created new sessions without invalidating existing ones, allowing unlimited simultaneous sessions per user. The logout flow only cleared the client-side cookie without deleting the session from the DB, meaning the token remained valid server-side. Session validation only checked the JWT signature without confirming the session still existed in the DB.
+**Fix**: Login deletes all `sessions` rows for that user before inserting the new session. Logout deletes the DB row for the cookie token whenever a token is present (even if `ctx.user` is already null), then clears the cookie. `createContext` already required a matching `sessions` row after JWT verify — documented explicitly. Added `auth.logoutAllDevices` plus a dashboard control to revoke every session server-side and clear the cookie. **Follow-up**: Login/signup use **sequential** Drizzle `delete` then `insert` (better-sqlite3 sync driver cannot use async `db.transaction` callbacks), normalized login email to match stored lower-case emails, added **`UNIQUE INDEX ON sessions(user_id)`** plus startup **dedupe** of legacy duplicate rows so only one session per user can exist in SQLite even under races or older builds.
+**Prevention**: Session invalidation must always be server-side and DB-backed. JWT validity alone is not sufficient — always cross-reference against the DB session store. Log out all devices functionality should be a standard feature in any banking application.
+
+## Pass Criteria
+- [ ] Log in on two browsers — second login invalidates the first session
+- [ ] First browser session is rejected after second login
+- [ ] Logout deletes the session from DB — confirm with `npm run db:list-sessions`
+- [ ] Using a previously valid token after logout is rejected
+- [ ] Valid active sessions work normally across all protected routes
+

@@ -38,6 +38,15 @@ function runPerf406DollarsToCentsMigration(raw: Database.Database) {
   raw.prepare("INSERT INTO _migrations (id) VALUES (?)").run("perf406_dollars_to_cents");
 }
 
+/** SEC-304: enforce one session row per user_id in SQLite (dedupe legacy rows, then UNIQUE index). */
+function runSec304SingleSessionPerUser(raw: Database.Database) {
+  raw.exec(`
+    DELETE FROM sessions
+    WHERE rowid NOT IN (SELECT MAX(rowid) FROM sessions GROUP BY user_id);
+  `);
+  raw.exec(`CREATE UNIQUE INDEX IF NOT EXISTS sessions_user_id_unique ON sessions (user_id);`);
+}
+
 export function initDb() {
   // PERF-408: DDL and migration run on the singleton only — never open a second connection here
   // (previous code leaked an extra handle on every initDb call).
@@ -89,6 +98,7 @@ export function initDb() {
   `);
 
   runPerf406DollarsToCentsMigration(sqlite);
+  runSec304SingleSessionPerUser(sqlite);
 
   // PERF-407: indexes for hot paths (existing DBs — Drizzle schema alone does not ALTER existing SQLite files).
   sqlite.exec(`

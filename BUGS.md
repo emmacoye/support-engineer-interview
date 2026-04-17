@@ -140,3 +140,15 @@
 - [ ] Using a previously valid token after logout is rejected
 - [ ] Valid active sessions work normally across all protected routes
 
+## SEC-302: Insecure Account Number Generation
+**Priority**: High
+**Root Cause**: Account numbers were generated using Math.random() which is a pseudorandom number generator not suitable for security-sensitive values. Math.random() output is predictable and can be reverse-engineered, making account numbers guessable by an attacker.
+**Fix**: Replaced Math.random() with crypto.randomBytes() from Node.js's built-in crypto module. This uses a cryptographically secure pseudorandom number generator (CSPRNG) that is suitable for generating sensitive identifiers. The output is converted to a 10-digit numeric account number.
+**Prevention**: Never use Math.random() for any security-sensitive value — account numbers, session tokens, verification codes, or any identifier that must be unguessable. Always use crypto.randomBytes() or crypto.randomUUID() for these cases. Add a linting rule to flag Math.random() usage in auth and account-related files.
+
+## Pass Criteria
+- [ ] No Math.random() calls remain in account number generation code
+- [ ] New accounts are created successfully with a 10 digit numeric account number
+- [ ] Running account creation 10 times produces 10 different account numbers
+- [ ] Account numbers are numeric only, no letters or special characters
+

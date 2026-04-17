@@ -6,12 +6,7 @@ import { accounts, transactions } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { validateCard } from "@/lib/validation/card";
 import { centsFromDb, OPENING_BALANCE_DOLLARS, toCents } from "@/lib/currency";
-
-function generateAccountNumber(): string {
-  return Math.floor(Math.random() * 1000000000)
-    .toString()
-    .padStart(10, "0");
-}
+import { generateAccountNumber } from "@/lib/account-number";
 
 export const accountRouter = router({
   createAccount: protectedProcedure

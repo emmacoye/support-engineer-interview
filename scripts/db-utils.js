@@ -6,6 +6,8 @@ const db = new Database(dbPath);
 
 const command = process.argv[2];
 
+// PERF-408: always close the CLI connection, including when a command throws.
+try {
 if (command === "list-users") {
   console.log("\n=== Current Users ===");
   // SEC-301 verification: include `ssn` so we can confirm ciphertext at rest in SQLite.
@@ -91,5 +93,6 @@ Examples:
   npm run db:delete-user test@example.com
   `);
 }
-
-db.close();
+} finally {
+  db.close();
+}

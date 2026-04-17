@@ -4,10 +4,10 @@ import * as schema from "./schema";
 
 const dbPath = "bank.db";
 
+// PERF-408: Single process-wide SQLite handle for Drizzle. Do not open per request and do not close
+// during normal request handling (Next.js/tRPC reuse this module across invocations).
 const sqlite = new Database(dbPath);
 export const db = drizzle(sqlite, { schema });
-
-const connections: Database.Database[] = [];
 
 /**
  * PERF-406: Legacy rows stored balances/amounts in **dollars** (e.g. 120 = $120). New code stores **cents**.
@@ -39,10 +39,8 @@ function runPerf406DollarsToCentsMigration(raw: Database.Database) {
 }
 
 export function initDb() {
-  const conn = new Database(dbPath);
-  connections.push(conn);
-
-  // Create tables if they don't exist
+  // PERF-408: DDL and migration run on the singleton only — never open a second connection here
+  // (previous code leaked an extra handle on every initDb call).
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

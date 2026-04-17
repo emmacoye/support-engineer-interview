@@ -15,46 +15,49 @@ function main() {
   const dbPath = path.join(process.cwd(), "bank.db");
   const sqlite = new Database(dbPath);
 
-  const rows = sqlite.prepare("SELECT id, ssn FROM users").all() as Array<{ id: number; ssn: string }>;
-  if (rows.length === 0) {
-    console.log("No users found; nothing to migrate.");
-    sqlite.close();
-    return;
-  }
-
-  let updated = 0;
-  let skipped = 0;
-
-  const updateStmt = sqlite.prepare("UPDATE users SET ssn = ? WHERE id = ?");
-
-  const tx = sqlite.transaction(() => {
-    for (const row of rows) {
-      const value = String(row.ssn ?? "");
-      const looksEncrypted = value.includes(":");
-
-      if (looksEncrypted) {
-        try {
-          decryptSSN(value);
-          skipped++;
-          continue;
-        } catch (err) {
-          throw new Error(
-            `User ${row.id} has an SSN that looks encrypted but cannot be decrypted. ` +
-              `Check SSN_ENCRYPTION_KEY (rotation?) and DB integrity. Original error: ${(err as Error).message}`
-          );
-        }
-      }
-
-      // Plaintext path: encrypt and overwrite.
-      updateStmt.run(encryptSSN(value), row.id);
-      updated++;
+  try {
+    const rows = sqlite.prepare("SELECT id, ssn FROM users").all() as Array<{ id: number; ssn: string }>;
+    if (rows.length === 0) {
+      console.log("No users found; nothing to migrate.");
+      return;
     }
-  });
 
-  tx();
-  sqlite.close();
+    let updated = 0;
+    let skipped = 0;
 
-  console.log(`SEC-301 migration complete. Updated: ${updated}. Already-encrypted: ${skipped}.`);
+    const updateStmt = sqlite.prepare("UPDATE users SET ssn = ? WHERE id = ?");
+
+    const tx = sqlite.transaction(() => {
+      for (const row of rows) {
+        const value = String(row.ssn ?? "");
+        const looksEncrypted = value.includes(":");
+
+        if (looksEncrypted) {
+          try {
+            decryptSSN(value);
+            skipped++;
+            continue;
+          } catch (err) {
+            throw new Error(
+              `User ${row.id} has an SSN that looks encrypted but cannot be decrypted. ` +
+                `Check SSN_ENCRYPTION_KEY (rotation?) and DB integrity. Original error: ${(err as Error).message}`
+            );
+          }
+        }
+
+        // Plaintext path: encrypt and overwrite.
+        updateStmt.run(encryptSSN(value), row.id);
+        updated++;
+      }
+    });
+
+    tx();
+
+    console.log(`SEC-301 migration complete. Updated: ${updated}. Already-encrypted: ${skipped}.`);
+  } finally {
+    // PERF-408: guarantee close on error paths (e.g. transaction throws).
+    sqlite.close();
+  }
 }
 
 main();

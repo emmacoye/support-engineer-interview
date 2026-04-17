@@ -89,3 +89,16 @@
 - [ ] All currency displays show 2 decimal places and correct dollar formatting
 - [ ] No balance drift after 50+ transactions
 
+## PERF-408: Database Connection Resource Leak
+**Priority**: Critical
+**Root Cause**: Database connections were being opened per request without guaranteed cleanup. If an error occurred mid-operation the connection was never closed, causing connections to accumulate over time and exhaust system resources.
+**Fix**: The Drizzle app uses a **single** better-sqlite3 handle created once in `lib/db/index.ts` and reused for all tRPC/Next requests (do not close it during normal handling). Removed the **extra** `new Database(dbPath)` inside `initDb()` that was pushed to an array and never closed—each process boot leaked one unused connection. For **short-lived** CLI/verification scripts that open their own handle, wrapped work in **`try/finally`** so `close()` always runs on errors.
+**Prevention**: Always use try/finally for resource cleanup — never rely on the happy path to close connections. In Next.js, DB connections should use the singleton pattern to avoid re-initializing on every hot reload or request. Add connection pool monitoring to catch leaks early in production.
+
+## Pass Criteria
+- [ ] DB connection is initialized once as a singleton, not per request
+- [ ] All DB operations that open a **dedicated** connection use `try/finally` (or process exit) so `close()` is guaranteed
+- [ ] Simulating a DB error mid-request does not leave an **extra** connection open (singleton remains the only long-lived handle)
+- [ ] App functions normally after fix — all queries and mutations work as expected
+- [ ] Server/runtime code does not open additional `new Database(` handles; scripts that do must close in `finally`
+

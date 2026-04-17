@@ -37,11 +37,15 @@ async function main() {
   assert(signup?.user?.email === email, "Signup did not return expected user");
   assert(signup.user.ssn === ssn, "Decryption on signup response failed (SSN mismatch)");
 
-  // Verify ciphertext at rest directly in SQLite.
+  // Verify ciphertext at rest directly in SQLite (separate short-lived handle; PERF-408: close in finally).
   const dbPath = path.join(process.cwd(), "bank.db");
   const sqlite = new Database(dbPath);
-  const row = sqlite.prepare("SELECT ssn FROM users WHERE email = ?").get(email) as { ssn: string } | undefined;
-  sqlite.close();
+  let row: { ssn: string } | undefined;
+  try {
+    row = sqlite.prepare("SELECT ssn FROM users WHERE email = ?").get(email) as { ssn: string } | undefined;
+  } finally {
+    sqlite.close();
+  }
 
   assert(row?.ssn, "User row missing from DB after signup");
   assert(row.ssn !== ssn, "SSN is still plaintext in DB");

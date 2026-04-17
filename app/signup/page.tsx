@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
 import Link from "next/link";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
+import { PASSWORD_RULES } from "@/lib/validation/password";
 
 type SignupFormData = {
   email: string;
@@ -27,13 +28,14 @@ export default function SignupPage() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
 
+  // VAL-208: collect *all* password rule failures so we can show per-rule messages (not just the first error).
   const {
     register,
     handleSubmit,
     formState: { errors },
     watch,
     trigger,
-  } = useForm<SignupFormData>();
+  } = useForm<SignupFormData>({ criteriaMode: "all" });
   const signupMutation = trpc.auth.signup.useMutation();
 
   const password = watch("password");
@@ -60,8 +62,8 @@ export default function SignupPage() {
       setError("");
       await signupMutation.mutateAsync(data);
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
     }
   };
 
@@ -101,22 +103,34 @@ export default function SignupPage() {
                 <input
                   {...register("password", {
                     required: "Password is required",
-                    minLength: {
-                      value: 8,
-                      message: "Password must be at least 8 characters",
-                    },
+                    // VAL-208: enforce password complexity client-side to reduce account takeover risk.
                     validate: {
+                      ...Object.fromEntries(
+                        PASSWORD_RULES.map((rule, i) => [
+                          `rule_${i}`,
+                          (value: string) => rule.regex.test(value) || rule.message,
+                        ])
+                      ),
                       notCommon: (value) => {
                         const commonPasswords = ["password", "12345678", "qwerty"];
                         return !commonPasswords.includes(value.toLowerCase()) || "Password is too common";
                       },
-                      hasNumber: (value) => /\d/.test(value) || "Password must contain a number",
                     },
                   })}
                   type="password"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />
-                {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
+                {errors.password?.types ? (
+                  <ul className="mt-1 text-sm text-red-600 list-disc pl-5">
+                    {Object.values(errors.password.types)
+                      .filter((v): v is string => typeof v === "string" && v.length > 0)
+                      .map((msg) => (
+                        <li key={msg}>{msg}</li>
+                      ))}
+                  </ul>
+                ) : (
+                  errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                )}
               </div>
 
               <div>

@@ -8,6 +8,7 @@ import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptSSN, encryptSSN } from "@/lib/crypto";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
+import { validatePassword } from "@/lib/validation/password";
 
 export const authRouter = router({
   signup: publicProcedure
@@ -15,7 +16,7 @@ export const authRouter = router({
       z
         .object({
           email: z.string().email().toLowerCase(),
-          password: z.string().min(8),
+          password: z.string(),
           firstName: z.string().min(1),
           lastName: z.string().min(1),
           phoneNumber: z.string().regex(/^\+?\d{10,15}$/),
@@ -28,6 +29,15 @@ export const authRouter = router({
         })
         // VAL-202: enforce DOB boundaries server-side (never trust client).
         .superRefine((data, ctx) => {
+          // VAL-208: enforce password complexity server-side and cap length (<=128) to prevent bcrypt DoS.
+          for (const message of validatePassword(data.password)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["password"],
+              message,
+            });
+          }
+
           const result = validateDob(data.dateOfBirth);
           if (!result.ok) {
             ctx.addIssue({

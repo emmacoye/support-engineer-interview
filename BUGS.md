@@ -32,3 +32,20 @@
 - [ ] Empty or too-short inputs are rejected with a clear error message
 - [ ] Validation fires on both the form and the tRPC handler
 
+## VAL-208: Weak Password Requirements
+**Priority**: Critical
+**Root Cause**: Password validation only enforced a minimum length check. No complexity requirements existed, allowing users to set passwords like "12345678" that are trivially brute-forced.
+**Fix**: Added complexity rules requiring at least one uppercase letter, one lowercase letter, one number, and one special character, with a minimum length of 8 and maximum of 128 characters. Specific error messages are shown per failing rule. Validation is enforced on both the client (React Hook Form) and server (Zod refine).
+**Prevention**: Password complexity should be defined in a single shared utility and reused across all auth touch points. The 128 character maximum is important to prevent DoS via bcrypt — document this explicitly so future engineers do not remove it thinking it is arbitrary.
+
+## Pass Criteria
+- [ ] "password" is rejected (no uppercase, number, or special character)
+- [ ] "Password1" is rejected (no special character)
+- [ ] "Password1!" is accepted
+- [ ] "12345678" is rejected (no uppercase, lowercase, or special character)
+- [ ] Passwords over 128 characters are rejected
+- [ ] Each failing rule shows its own specific error message
+- [ ] Valid passwords are accepted and registration completes successfully
+- [ ] Login form is unaffected — no complexity check on login
+- [ ] Validation fires on both the form and the tRPC handler
+

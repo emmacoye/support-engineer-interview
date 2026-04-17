@@ -6,6 +6,7 @@ import { publicProcedure, router } from "../trpc";
 import { db } from "@/lib/db";
 import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { decryptSSN, encryptSSN } from "@/lib/crypto";
 
 export const authRouter = router({
   signup: publicProcedure
@@ -38,6 +39,8 @@ export const authRouter = router({
 
       await db.insert(users).values({
         ...input,
+        // SEC-301: encrypt SSN before writing to DB (PII at rest).
+        ssn: encryptSSN(input.ssn),
         password: hashedPassword,
       });
 
@@ -72,7 +75,8 @@ export const authRouter = router({
         (ctx.res as Headers).set("Set-Cookie", `session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800`);
       }
 
-      return { user: { ...user, password: undefined }, token };
+      // SEC-301: decrypt SSN after reading from DB so API behavior remains consistent.
+      return { user: { ...user, ssn: decryptSSN(user.ssn), password: undefined }, token };
     }),
 
   login: publicProcedure
@@ -120,7 +124,8 @@ export const authRouter = router({
         (ctx.res as Headers).set("Set-Cookie", `session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800`);
       }
 
-      return { user: { ...user, password: undefined }, token };
+      // SEC-301: decrypt SSN after reading from DB so callers don't receive ciphertext.
+      return { user: { ...user, ssn: decryptSSN(user.ssn), password: undefined }, token };
     }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {

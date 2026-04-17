@@ -8,12 +8,15 @@ const command = process.argv[2];
 
 if (command === "list-users") {
   console.log("\n=== Current Users ===");
-  const users = db.prepare("SELECT id, email, first_name, last_name FROM users").all();
+  // SEC-301 verification: include `ssn` so we can confirm ciphertext at rest in SQLite.
+  const users = db.prepare("SELECT id, email, first_name, last_name, ssn FROM users").all();
   if (users.length === 0) {
     console.log("No users found");
   } else {
     users.forEach((user) => {
-      console.log(`ID: ${user.id}, Email: ${user.email}, Name: ${user.first_name} ${user.last_name}`);
+      console.log(
+        `ID: ${user.id}, Email: ${user.email}, Name: ${user.first_name} ${user.last_name}, SSN: ${user.ssn}`
+      );
     });
   }
 } else if (command === "list-sessions") {
@@ -39,10 +42,18 @@ if (command === "list-users") {
   }
 } else if (command === "clear") {
   console.log("\n=== Clearing Database ===");
-  db.exec("DELETE FROM sessions");
-  db.exec("DELETE FROM transactions");
-  db.exec("DELETE FROM accounts");
-  db.exec("DELETE FROM users");
+  // Some interview flows create `bank.db` before tables exist; ignore missing-table errors.
+  const execIgnoreMissing = (sql) => {
+    try {
+      db.exec(sql);
+    } catch (e) {
+      if (!String(e && e.message).includes("no such table")) throw e;
+    }
+  };
+  execIgnoreMissing("DELETE FROM sessions");
+  execIgnoreMissing("DELETE FROM transactions");
+  execIgnoreMissing("DELETE FROM accounts");
+  execIgnoreMissing("DELETE FROM users");
   console.log("Database cleared!");
 } else if (command === "delete-user") {
   const email = process.argv[3];

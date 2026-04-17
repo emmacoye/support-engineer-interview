@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { db } from "@/lib/db";
 import { sessions, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { decryptSSN } from "@/lib/crypto";
 
 export async function createContext(opts: CreateNextContextOptions | FetchCreateContextFnOptions) {
   // Handle different adapter types
@@ -56,6 +57,8 @@ export async function createContext(opts: CreateNextContextOptions | FetchCreate
 
       if (session && new Date(session.expiresAt) > new Date()) {
         user = await db.select().from(users).where(eq(users.id, decoded.userId)).get();
+        // SEC-301: decrypt SSN after reading from DB so downstream code uses plaintext values.
+        if (user) user = { ...user, ssn: decryptSSN(user.ssn) };
         const expiresIn = new Date(session.expiresAt).getTime() - new Date().getTime();
         if (expiresIn < 60000) {
           console.warn("Session about to expire");

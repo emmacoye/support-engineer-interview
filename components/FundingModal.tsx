@@ -32,6 +32,7 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
   });
 
   const fundingType = watch("fundingType");
+  const utils = trpc.useUtils();
   const fundAccountMutation = trpc.account.fundAccount.useMutation();
 
   const onSubmit = async (data: FundingFormData) => {
@@ -49,6 +50,10 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
           routingNumber: data.routingNumber,
         },
       });
+
+      // PERF-405: funding inserts a row; invalidate cached queries so history and balances refetch (default staleTime is 60s).
+      await utils.account.getTransactions.invalidate({ accountId });
+      await utils.account.getAccounts.invalidate();
 
       onSuccess();
     } catch (err: unknown) {

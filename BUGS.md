@@ -64,9 +64,9 @@
 
 ## PERF-405: Missing Transactions in History
 **Priority**: Critical
-**Root Cause**: The transaction history query had either a hardcoded LIMIT silently truncating results, an incorrect WHERE clause filtering by the wrong ID, or no ORDER BY causing non-deterministic results that appeared to drop records. In some cases the client-side render was also slicing the returned array.
-**Fix**: Removed silent LIMIT from the DB query, corrected the WHERE clause to filter by accountId, and added ORDER BY created_at DESC for deterministic ordering. Confirmed the client renders all returned records without additional filtering.
-**Prevention**: Never use a silent LIMIT on financial record queries — if pagination is needed it must be explicit and visible to the user. All transaction queries should have a deterministic ORDER BY. Add an integration test that creates more than 10 transactions and asserts all are returned.
+**Root Cause**: The transaction history query had either a hardcoded LIMIT silently truncating results, an incorrect WHERE clause filtering by the wrong ID, or no ORDER BY causing non-deterministic results that appeared to drop records. The UI also showed stale history after funding because React Query kept cached `getTransactions` data for up to 60s without invalidation. The client render does not slice the list.
+**Fix**: Server: removed silent LIMIT, filter by `accountId`, `ORDER BY created_at DESC`, and fixed `fundAccount` to fetch the newest transaction per account after insert. Client: after a successful fund, invalidate `account.getTransactions` and `account.getAccounts` so the table refetches immediately.
+**Prevention**: Never use a silent LIMIT on financial record queries — if pagination is needed it must be explicit and visible to the user. All transaction queries should have a deterministic ORDER BY. After mutations that add rows, invalidate or refetch the affected queries. Add an integration test that creates more than 10 transactions and asserts all are returned.
 
 ## Pass Criteria
 - [ ] Create an account and fund it 15+ times

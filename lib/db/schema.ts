@@ -24,6 +24,7 @@ export const accounts = sqliteTable("accounts", {
     .notNull(),
   accountNumber: text("account_number").unique().notNull(),
   accountType: text("account_type").notNull(), // checking, savings
+  // PERF-406: integer cents stored in REAL column (no float dollars).
   balance: real("balance").default(0).notNull(),
   status: text("status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
@@ -35,6 +36,7 @@ export const transactions = sqliteTable("transactions", {
     .references(() => accounts.id)
     .notNull(),
   type: text("type").notNull(), // deposit, withdrawal
+  // PERF-406: integer cents stored in REAL column.
   amount: real("amount").notNull(),
   description: text("description"),
   status: text("status").default("pending").notNull(),

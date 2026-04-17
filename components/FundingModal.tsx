@@ -39,6 +39,7 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
     setError("");
 
     try {
+      // PERF-406: amount is dollars in the API contract; server converts to integer cents for DB math.
       const amount = parseFloat(data.amount);
 
       await fundAccountMutation.mutateAsync({

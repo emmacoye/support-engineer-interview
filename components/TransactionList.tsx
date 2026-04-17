@@ -1,6 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc/client";
+import { formatCurrency } from "@/lib/currency";
 
 interface TransactionListProps {
   accountId: number;
@@ -9,13 +10,7 @@ interface TransactionListProps {
 export function TransactionList({ accountId }: TransactionListProps) {
   const { data: transactions, isLoading } = trpc.account.getTransactions.useQuery({ accountId });
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
-  };
-
+  // PERF-406: transaction.amount is integer cents from API.
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",

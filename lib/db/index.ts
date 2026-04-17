@@ -36,7 +36,7 @@ export function initDb() {
       user_id INTEGER NOT NULL REFERENCES users(id),
       account_number TEXT UNIQUE NOT NULL,
       account_type TEXT NOT NULL,
-      balance REAL DEFAULT 0 NOT NULL,
+      balance REAL DEFAULT 0 NOT NULL, -- integer cents (PERF-406)
       status TEXT DEFAULT 'pending',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -45,7 +45,7 @@ export function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       account_id INTEGER NOT NULL REFERENCES accounts(id),
       type TEXT NOT NULL,
-      amount REAL NOT NULL,
+      amount REAL NOT NULL, -- integer cents (PERF-406)
       description TEXT,
       status TEXT DEFAULT 'pending' NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,

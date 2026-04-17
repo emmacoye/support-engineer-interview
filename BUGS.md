@@ -75,3 +75,16 @@
 - [ ] Transactions are scoped correctly to the account, not mixed with other accounts
 - [ ] No client-side array slicing is truncating the displayed list
 
+## PERF-406: Incorrect Balance Calculation
+**Priority**: Critical
+**Root Cause**: Account balances were calculated using JavaScript floating point arithmetic on dollar values. Floating point cannot represent decimal values exactly, so errors compound over many transactions (e.g. 0.1 + 0.2 = 0.30000000000000004). After enough transactions the displayed balance drifts from the correct value.
+**Fix**: Converted all balance arithmetic to integer cent-based math. Dollar values are converted to cents before any arithmetic and converted back to dollars only for display using a shared currency utility (`lib/currency.ts`). This eliminates floating point drift entirely since integer arithmetic is exact.
+**Prevention**: Never use floating point for currency in any context. Store monetary values as integers (cents) in the DB and perform all arithmetic in cents. Use a shared currency utility for all conversions and display formatting so there is one place to audit.
+
+## Pass Criteria
+- [ ] Create an account and fund it with $0.10 ten times — balance should show exactly $1.00 + $100.00 opening balance = $101.00
+- [ ] Fund with amounts that are known to cause floating point drift (e.g. $0.10, $0.20, $0.30) and confirm balance is exact
+- [ ] Opening balance of $100.00 is stored and displayed correctly
+- [ ] All currency displays show 2 decimal places and correct dollar formatting
+- [ ] No balance drift after 50+ transactions
+

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
+import { formatCurrency } from "@/lib/currency";
 import { AccountCreationModal } from "@/components/AccountCreationModal";
 import { FundingModal } from "@/components/FundingModal";
 import { TransactionList } from "@/components/TransactionList";
@@ -21,13 +22,7 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
-  };
-
+  // PERF-406: account.balance from API is integer cents; format for display only.
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow">

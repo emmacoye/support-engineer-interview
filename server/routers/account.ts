@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { validateCard } from "@/lib/validation/card";
+import { centsFromDb, toCents } from "@/lib/currency";
 
 function generateAccountNumber(): string {
   return Math.floor(Math.random() * 1000000000)
@@ -45,11 +46,12 @@ export const accountRouter = router({
       }
 
       try {
+        // PERF-406: $100 opening balance stored as integer cents (10_000), not dollar floats.
         await db.insert(accounts).values({
           userId: ctx.user.id,
           accountNumber: accountNumber!,
           accountType: input.accountType,
-          balance: 100,
+          balance: toCents(100),
           status: "active",
         });
 
@@ -98,7 +100,8 @@ export const accountRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const amount = parseFloat(input.amount.toString());
+      const amountDollars = parseFloat(input.amount.toString());
+      const amountCents = toCents(amountDollars);
 
       // Verify account belongs to user
       const account = await db
@@ -121,11 +124,11 @@ export const accountRouter = router({
         });
       }
 
-      // Create transaction
+      // PERF-406: store transaction amount as cents; update balance with integer cent math only.
       await db.insert(transactions).values({
         accountId: input.accountId,
         type: "deposit",
-        amount,
+        amount: amountCents,
         description: `Funding from ${input.fundingSource.type}`,
         status: "completed",
         processedAt: new Date().toISOString(),
@@ -140,22 +143,25 @@ export const accountRouter = router({
         .limit(1)
         .get();
 
-      // Update account balance
+      const balanceCents = centsFromDb(account.balance);
+      const newBalanceCents = balanceCents + amountCents;
+
       await db
         .update(accounts)
         .set({
-          balance: account.balance + amount,
+          balance: newBalanceCents,
         })
         .where(eq(accounts.id, input.accountId));
 
-      let finalBalance = account.balance;
-      for (let i = 0; i < 100; i++) {
-        finalBalance = finalBalance + amount / 100;
-      }
+      const updatedAccount = await db
+        .select()
+        .from(accounts)
+        .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.user.id)))
+        .get();
 
       return {
         transaction,
-        newBalance: finalBalance, // This will be slightly off due to float precision
+        newBalance: updatedAccount ? centsFromDb(updatedAccount.balance) : newBalanceCents,
       };
     }),
 

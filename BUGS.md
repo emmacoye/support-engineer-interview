@@ -62,3 +62,16 @@
 - [ ] No $100 balance appears in the UI without a confirmed DB write
 - [ ] tRPC handler throws a proper error on DB failure, not a default value
 
+## PERF-405: Missing Transactions in History
+**Priority**: Critical
+**Root Cause**: The transaction history query had either a hardcoded LIMIT silently truncating results, an incorrect WHERE clause filtering by the wrong ID, or no ORDER BY causing non-deterministic results that appeared to drop records. In some cases the client-side render was also slicing the returned array.
+**Fix**: Removed silent LIMIT from the DB query, corrected the WHERE clause to filter by accountId, and added ORDER BY created_at DESC for deterministic ordering. Confirmed the client renders all returned records without additional filtering.
+**Prevention**: Never use a silent LIMIT on financial record queries — if pagination is needed it must be explicit and visible to the user. All transaction queries should have a deterministic ORDER BY. Add an integration test that creates more than 10 transactions and asserts all are returned.
+
+## Pass Criteria
+- [ ] Create an account and fund it 15+ times
+- [ ] Transaction history shows all 15+ transactions
+- [ ] Transactions are ordered newest first
+- [ ] Transactions are scoped correctly to the account, not mixed with other accounts
+- [ ] No client-side array slicing is truncating the displayed list
+

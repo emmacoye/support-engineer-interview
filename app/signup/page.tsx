@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
 import Link from "next/link";
+import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 
 type SignupFormData = {
   email: string;
@@ -189,7 +190,14 @@ export default function SignupPage() {
                   Date of Birth
                 </label>
                 <input
-                  {...register("dateOfBirth", { required: "Date of birth is required" })}
+                  {...register("dateOfBirth", {
+                    required: "Date of birth is required",
+                    // VAL-202: enforce DOB boundaries client-side (18+ years, not future, not >120).
+                    validate: (value) => {
+                      const result = validateDob(value);
+                      return result.ok ? true : dobErrorMessage(result.code);
+                    },
+                  })}
                   type="date"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />

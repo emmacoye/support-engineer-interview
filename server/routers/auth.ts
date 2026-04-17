@@ -7,23 +7,36 @@ import { db } from "@/lib/db";
 import { users, sessions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { decryptSSN, encryptSSN } from "@/lib/crypto";
+import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 
 export const authRouter = router({
   signup: publicProcedure
     .input(
-      z.object({
-        email: z.string().email().toLowerCase(),
-        password: z.string().min(8),
-        firstName: z.string().min(1),
-        lastName: z.string().min(1),
-        phoneNumber: z.string().regex(/^\+?\d{10,15}$/),
-        dateOfBirth: z.string(),
-        ssn: z.string().regex(/^\d{9}$/),
-        address: z.string().min(1),
-        city: z.string().min(1),
-        state: z.string().length(2).toUpperCase(),
-        zipCode: z.string().regex(/^\d{5}$/),
-      })
+      z
+        .object({
+          email: z.string().email().toLowerCase(),
+          password: z.string().min(8),
+          firstName: z.string().min(1),
+          lastName: z.string().min(1),
+          phoneNumber: z.string().regex(/^\+?\d{10,15}$/),
+          dateOfBirth: z.string(),
+          ssn: z.string().regex(/^\d{9}$/),
+          address: z.string().min(1),
+          city: z.string().min(1),
+          state: z.string().length(2).toUpperCase(),
+          zipCode: z.string().regex(/^\d{5}$/),
+        })
+        // VAL-202: enforce DOB boundaries server-side (never trust client).
+        .superRefine((data, ctx) => {
+          const result = validateDob(data.dateOfBirth);
+          if (!result.ok) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["dateOfBirth"],
+              message: dobErrorMessage(result.code),
+            });
+          }
+        })
     )
     .mutation(async ({ input, ctx }) => {
       const existingUser = await db.select().from(users).where(eq(users.email, input.email)).get();

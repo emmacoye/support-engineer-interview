@@ -28,15 +28,15 @@ export function AccountCreationModal({ onClose, onSuccess }: AccountCreationModa
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Open New Account</h3>
+    <div className="fixed inset-0 bg-gray-500/75 dark:bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6 border border-transparent dark:border-gray-800 shadow-xl">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Open New Account</h3>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-400 mb-2">Account Type</label>
             <div className="space-y-2">
-              <label className="flex items-center">
+              <label className="flex items-center text-gray-900 dark:text-gray-300">
                 <input
                   type="radio"
                   value="checking"
@@ -46,7 +46,7 @@ export function AccountCreationModal({ onClose, onSuccess }: AccountCreationModa
                 />
                 <span>Checking Account</span>
               </label>
-              <label className="flex items-center">
+              <label className="flex items-center text-gray-900 dark:text-gray-300">
                 <input
                   type="radio"
                   value="savings"
@@ -59,20 +59,20 @@ export function AccountCreationModal({ onClose, onSuccess }: AccountCreationModa
             </div>
           </div>
 
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
 
           <div className="flex justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-white bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createAccountMutation.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50"
             >
               {createAccountMutation.isPending ? "Creating..." : "Create Account"}
             </button>

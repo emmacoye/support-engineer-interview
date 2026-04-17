@@ -210,3 +210,16 @@ improvement opportunity.
 - [ ] Email is stored as lowercase in the DB regardless of input case
 - [ ] Login works with uppercase input for an account registered with lowercase email
 - [ ] Validation fires on both the form and the tRPC handler
+
+## UI-101: Dark Mode Text Visibility
+**Priority**: Medium
+**Root Cause**: Form inputs were missing explicit dark mode text and background color Tailwind classes. In dark mode the browser default or inherited text color was white, but the input background was also white, making typed text invisible.
+**Fix**: Added dark mode Tailwind classes to the shared Input component (text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800). Since the fix was applied to the shared component it automatically propagates to all form inputs across the application.
+**Prevention**: Always define both text and background color explicitly on input elements — never rely on inherited or browser default colors. When adding new input components always include dark: variants for all color classes. A shared Input component ensures dark mode fixes apply everywhere automatically.
+
+## Pass Criteria
+- [ ] Enable dark mode and navigate to the registration form
+- [ ] Type in any input field — text must be clearly visible
+- [ ] Check all forms — registration, login, funding, account creation
+- [ ] Light mode inputs are unaffected and still display correctly
+- [ ] Placeholder text is visible in both light and dark mode

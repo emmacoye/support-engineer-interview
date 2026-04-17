@@ -89,6 +89,12 @@ export function initDb() {
   `);
 
   runPerf406DollarsToCentsMigration(sqlite);
+
+  // PERF-407: indexes for hot paths (existing DBs — Drizzle schema alone does not ALTER existing SQLite files).
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS transactions_account_id_created_at_idx ON transactions (account_id, created_at);
+    CREATE INDEX IF NOT EXISTS accounts_user_id_idx ON accounts (user_id);
+  `);
 }
 
 // Initialize database on import

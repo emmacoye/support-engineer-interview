@@ -53,12 +53,22 @@ export async function createContext(opts: CreateNextContextOptions | FetchCreate
         userId: number;
       };
 
-      const session = await db.select().from(sessions).where(eq(sessions.token, token)).get();
+      // PERF-407: session row + user row are independent reads — parallelize (both indexed: token unique, user PK).
+      const [session, userRow] = await Promise.all([
+        db.select().from(sessions).where(eq(sessions.token, token)).get(),
+        db.select().from(users).where(eq(users.id, decoded.userId)).get(),
+      ]);
 
-      if (session && new Date(session.expiresAt) > new Date()) {
-        user = await db.select().from(users).where(eq(users.id, decoded.userId)).get();
+      if (
+        session &&
+        userRow &&
+        session.userId === decoded.userId &&
+        userRow.id === session.userId &&
+        new Date(session.expiresAt) > new Date()
+      ) {
+        user = userRow;
         // SEC-301: decrypt SSN after reading from DB so downstream code uses plaintext values.
-        if (user) user = { ...user, ssn: decryptSSN(user.ssn) };
+        user = { ...user, ssn: decryptSSN(user.ssn) };
         const expiresIn = new Date(session.expiresAt).getTime() - new Date().getTime();
         if (expiresIn < 60000) {
           console.warn("Session about to expire");

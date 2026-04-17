@@ -134,35 +134,30 @@ export const accountRouter = router({
         processedAt: new Date().toISOString(),
       });
 
-      // PERF-405: don't rely on non-deterministic ordering; always fetch newest transaction deterministically.
-      const transaction = await db
-        .select()
-        .from(transactions)
-        .where(eq(transactions.accountId, input.accountId))
-        .orderBy(desc(transactions.createdAt))
-        .limit(1)
-        .get();
-
       // PERF-406: `account.balance` is already integer cents from DB (after migration); never wrap with toCents().
       const balanceCents = centsFromDb(account.balance);
       const newBalanceCents = balanceCents + amountCents;
 
-      await db
-        .update(accounts)
-        .set({
-          balance: newBalanceCents,
-        })
-        .where(eq(accounts.id, input.accountId));
-
-      const updatedAccount = await db
-        .select()
-        .from(accounts)
-        .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.user.id)))
-        .get();
+      // PERF-407: newest-tx read and balance update are independent after insert — run together; skip redundant re-read of balance.
+      const [transaction] = await Promise.all([
+        db
+          .select()
+          .from(transactions)
+          .where(eq(transactions.accountId, input.accountId))
+          .orderBy(desc(transactions.createdAt))
+          .limit(1)
+          .get(),
+        db
+          .update(accounts)
+          .set({
+            balance: newBalanceCents,
+          })
+          .where(eq(accounts.id, input.accountId)),
+      ]);
 
       return {
         transaction,
-        newBalance: updatedAccount ? centsFromDb(updatedAccount.balance) : newBalanceCents,
+        newBalance: newBalanceCents,
       };
     }),
 
@@ -173,30 +168,49 @@ export const accountRouter = router({
       })
     )
     .query(async ({ input, ctx }) => {
-      // Verify account belongs to user
-      const account = await db
-        .select()
-        .from(accounts)
-        .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.user.id)))
-        .get();
-
-      if (!account) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Account not found",
-        });
-      }
-
-      const accountTransactions = await db
-        .select()
+      // PERF-407: one joined query when history exists; empty history still needs ownership probe below.
+      const rows = await db
+        .select({
+          id: transactions.id,
+          accountId: transactions.accountId,
+          type: transactions.type,
+          amount: transactions.amount,
+          description: transactions.description,
+          status: transactions.status,
+          createdAt: transactions.createdAt,
+          processedAt: transactions.processedAt,
+          accountType: accounts.accountType,
+        })
         .from(transactions)
-        .where(eq(transactions.accountId, input.accountId))
-        // PERF-405: deterministic ordering (newest first) and no silent LIMIT/pagination.
+        .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+        .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.user.id)))
         .orderBy(desc(transactions.createdAt));
 
-      return accountTransactions.map((t) => ({
-        ...t,
-        accountType: account.accountType,
+      if (rows.length === 0) {
+        const owned = await db
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.user.id)))
+          .get();
+        if (!owned) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Account not found",
+          });
+        }
+        return [];
+      }
+
+      return rows.map((r) => ({
+        id: r.id,
+        accountId: r.accountId,
+        type: r.type,
+        amount: r.amount,
+        description: r.description,
+        status: r.status,
+        createdAt: r.createdAt,
+        processedAt: r.processedAt,
+        accountType: r.accountType,
       }));
     }),
 });

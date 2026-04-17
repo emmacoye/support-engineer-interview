@@ -102,3 +102,16 @@
 - [ ] App functions normally after fix — all queries and mutations work as expected
 - [ ] Server/runtime code does not open additional `new Database(` handles; scripts that do must close in `finally`
 
+## PERF-407: Performance Degradation Under Multiple Transactions
+**Priority**: High
+**Root Cause**: Performance degradation was caused by a combination of missing database indexes on frequently queried columns (accountId, createdAt), N+1 query patterns fetching records in loops, and sequential async operations that could run in parallel. Each issue compounds under load.
+**Fix**: Added a composite Drizzle index on `(account_id, created_at)` for `transactions` plus `CREATE INDEX IF NOT EXISTS` in `initDb` for existing DBs; added `accounts(user_id)` for listing by user. `getTransactions` now uses one `innerJoin` query when rows exist (empty history still does a small ownership probe). `fundAccount` parallelizes post-insert “newest tx” read and balance `update`; tRPC context loads session + user with `Promise.all` and validates `session.userId` matches the JWT subject.
+**Prevention**: Always index foreign key columns and columns used in ORDER BY. Review any loop containing an await as a potential N+1. Use Promise.all() for independent async operations as a default pattern. Add query performance logging in development to catch slow queries early.
+
+## Pass Criteria
+- [ ] Transactions table has indexes on accountId and createdAt
+- [ ] No await calls inside loops fetching DB records
+- [ ] Independent async operations in handlers use Promise.all()
+- [ ] Transaction history query is noticeably faster with 50+ records
+- [ ] All existing functionality works correctly after changes
+

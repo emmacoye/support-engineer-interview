@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { trpc } from "@/lib/trpc/client";
 import { validateCard } from "@/lib/validation/card";
 import { validateRoutingNumber } from "@/lib/validation/routing";
+import { INVALID_AMOUNT_MESSAGE, validateAmount } from "@/lib/validation/amount";
 import { Input } from "@/components/ui/input";
 
 interface FundingModalProps {
@@ -41,12 +42,10 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
     setError("");
 
     try {
-      // PERF-406: amount is dollars in the API contract; server converts to integer cents for DB math.
-      const amount = parseFloat(data.amount);
-
+      // PERF-406: amount is dollars as a validated string; server parses and converts to integer cents for DB math.
       await fundAccountMutation.mutateAsync({
         accountId,
-        amount,
+        amount: data.amount.trim(),
         fundingSource: {
           type: data.fundingType,
           accountNumber: data.accountNumber,
@@ -84,17 +83,16 @@ export function FundingModal({ accountId, onClose, onSuccess }: FundingModalProp
               <Input
                 {...register("amount", {
                   required: "Amount is required",
-                  pattern: {
-                    value: /^\d+\.?\d{0,2}$/,
-                    message: "Invalid amount format",
-                  },
-                  min: {
-                    value: 0.0,
-                    message: "Amount must be at least $0.01",
-                  },
-                  max: {
-                    value: 10000,
-                    message: "Amount cannot exceed $10,000",
+                  // VAL-209: same string rules as server; VAL-205: minimum $0.01 via numeric check after format passes.
+                  validate: (value) => {
+                    const v = (value ?? "").trim();
+                    if (!v) return "Amount is required";
+                    if (!validateAmount(v)) return INVALID_AMOUNT_MESSAGE;
+                    const n = parseFloat(v);
+                    if (Number.isNaN(n)) return INVALID_AMOUNT_MESSAGE;
+                    if (n <= 0) return "Amount must be at least $0.01";
+                    if (n > 10000) return "Amount cannot exceed $10,000";
+                    return true;
                   },
                 })}
                 type="text"

@@ -8,6 +8,7 @@ import { validateCard } from "@/lib/validation/card";
 import { validateRoutingNumber } from "@/lib/validation/routing";
 import { centsFromDb, OPENING_BALANCE_DOLLARS, toCents } from "@/lib/currency";
 import { generateAccountNumber } from "@/lib/account-number";
+import { INVALID_AMOUNT_MESSAGE, validateAmount } from "@/lib/validation/amount";
 
 export const accountRouter = router({
   createAccount: protectedProcedure
@@ -74,7 +75,14 @@ export const accountRouter = router({
     .input(
       z.object({
         accountId: z.number(),
-        amount: z.number().positive(),
+        // VAL-209: validate raw string so leading zeros cannot bypass via JSON number; VAL-205: `.positive()` after parse.
+        amount: z
+          .string()
+          .trim()
+          .min(1, { message: "Amount is required" })
+          .refine(validateAmount, { message: INVALID_AMOUNT_MESSAGE })
+          .transform((s) => parseFloat(s))
+          .pipe(z.number().positive({ message: "Amount must be at least $0.01" })),
         fundingSource: z
           .object({
             type: z.enum(["card", "bank"]),

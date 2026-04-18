@@ -268,3 +268,19 @@ improvement opportunity.
 - [ ] "(212) 555-1234" accepted after stripping formatting
 - [ ] Stored in DB as digits only "2125551234"
 - [ ] Validation fires on both the form and the tRPC handler
+
+## VAL-209: Amount Input Leading Zeros
+**Priority**: Medium
+**Root Cause**: The amount input field had no validation against leading zeros, accepting values like "007.50" or "00100" which created confusing transaction records. No maximum decimal place restriction existed either, allowing amounts like "10.999".
+**Fix**: Added regex validation rejecting multiple leading zeros and limiting decimal places to a maximum of 2. A single leading zero followed by a decimal point (e.g. "0.50") remains valid. Validation is enforced on both client and server.
+**Prevention**: Amount fields should always validate format explicitly — positive number, max 2 decimal places, no leading zeros. Define this in a shared utility so it is consistent across all funding and transaction entry points.
+
+## Pass Criteria
+- [ ] "007.50" is rejected with a clear error message
+- [ ] "00100" is rejected
+- [ ] "0.50" is accepted
+- [ ] "10.99" is accepted
+- [ ] "100" is accepted
+- [ ] "10.999" is rejected (too many decimal places)
+- [ ] "0" is rejected
+- [ ] Validation fires on both the form and the tRPC handler

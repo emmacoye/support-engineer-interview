@@ -223,3 +223,16 @@ improvement opportunity.
 - [ ] Check all forms — registration, login, funding, account creation
 - [ ] Light mode inputs are unaffected and still display correctly
 - [ ] Placeholder text is visible in both light and dark mode
+
+## PERF-402: Logout Always Reports Success
+**Priority**: Medium
+**Root Cause**: The logout handler was swallowing DB deletion errors inside a try/catch and always returning success regardless of whether the session was actually deleted. The session cookie was also being cleared before the DB deletion was confirmed, meaning the client appeared logged out even when the server operation failed.
+**Fix**: Removed the silent error swallow — DB deletion errors now throw a tRPC error that is returned to the client. The session cookie is only cleared after the DB deletion is confirmed successful. If no session is found to delete the response still returns success since the user is effectively logged out.
+**Prevention**: Never return success from a security-sensitive operation without confirming the underlying action completed. Logout is a security operation — a failed logout that reports success leaves the user believing they are safe when they are not. Always confirm DB state before updating client state.
+
+## Pass Criteria
+- [ ] Normal logout deletes session from DB and clears cookie — confirm with npm run db:list-sessions
+- [ ] Logout returns a real success only after DB deletion is confirmed
+- [ ] If DB deletion fails an error is returned to the client, not a false success
+- [ ] Cookie is not cleared if DB deletion fails
+- [ ] User is redirected to login after successful logout

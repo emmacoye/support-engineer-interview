@@ -160,19 +160,38 @@ export const authRouter = router({
     }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
-    // SEC-304: always revoke the cookie's session row in DB when present (do not require ctx.user — JWT may still verify after row was deleted elsewhere).
+    // SEC-304: revoke the cookie's session row when present (do not require ctx.user).
     const token = getSessionCookieToken(ctx.req);
-    if (token) {
-      await db.delete(sessions).where(eq(sessions.token, token));
+
+    const clearSessionCookie = () => {
+      if ("setHeader" in ctx.res) {
+        ctx.res.setHeader("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+      } else {
+        (ctx.res as Headers).set("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+      }
+    };
+
+    // PERF-402: With a token we must complete DB delete before clearing the cookie; never report success if delete throws.
+    // No token → nothing to delete in DB; still clear client cookie and succeed (already logged out).
+    if (!token) {
+      clearSessionCookie();
+      return { success: true as const, message: "No active session" };
     }
 
-    if ("setHeader" in ctx.res) {
-      ctx.res.setHeader("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
-    } else {
-      (ctx.res as Headers).set("Set-Cookie", `session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+    try {
+      // better-sqlite3 is synchronous — use `.run()` so we never depend on QueryPromise/async
+      // microtasks (avoids rare "await delete" failures in the Next/tRPC server bundle).
+      db.delete(sessions).where(eq(sessions.token, token)).run();
+    } catch (e) {
+      console.error("Logout DB deletion error:", e);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Logout failed. Please try again.",
+      });
     }
 
-    return { success: true, message: token ? "Logged out successfully" : "No active session" };
+    clearSessionCookie();
+    return { success: true as const, message: "Logged out successfully" };
   }),
 
   logoutAllDevices: protectedProcedure.mutation(async ({ ctx }) => {

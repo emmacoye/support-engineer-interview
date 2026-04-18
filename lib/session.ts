@@ -9,7 +9,19 @@ export function getSessionCookieToken(req: unknown): string | undefined {
   for (const segment of cookieHeader.split(";")) {
     const trimmed = segment.trim();
     if (trimmed.startsWith("session=")) {
-      return trimmed.slice("session=".length) || undefined;
+      let value = trimmed.slice("session=".length) || "";
+      // Browsers may quote cookie values — strip so DB `sessions.token` matches.
+      if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1);
+      }
+      if (value.includes("%")) {
+        try {
+          value = decodeURIComponent(value);
+        } catch {
+          /* keep raw value */
+        }
+      }
+      return value || undefined;
     }
   }
   return undefined;

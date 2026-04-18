@@ -13,14 +13,21 @@ export default function DashboardPage() {
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [fundingAccountId, setFundingAccountId] = useState<number | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [logoutError, setLogoutError] = useState("");
 
   const { data: accounts, refetch: refetchAccounts } = trpc.account.getAccounts.useQuery();
   const logoutMutation = trpc.auth.logout.useMutation();
   const logoutAllDevicesMutation = trpc.auth.logoutAllDevices.useMutation();
 
   const handleLogout = async () => {
-    await logoutMutation.mutateAsync();
-    router.push("/");
+    setLogoutError("");
+    try {
+      await logoutMutation.mutateAsync();
+      router.push("/");
+    } catch {
+      // PERF-402: server did not confirm DB revocation — do not redirect; cookie was not cleared server-side.
+      setLogoutError("Logout failed. Please try again.");
+    }
   };
 
   const handleLogoutAllDevices = async () => {
@@ -56,6 +63,11 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+          {logoutError ? (
+            <p className="pb-3 text-sm text-red-600 dark:text-red-400" role="alert">
+              {logoutError}
+            </p>
+          ) : null}
         </div>
       </nav>
 

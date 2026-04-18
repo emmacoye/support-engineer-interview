@@ -10,6 +10,7 @@ import { decryptSSN, encryptSSN } from "@/lib/crypto";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 import { validatePassword } from "@/lib/validation/password";
 import { zodEmail } from "@/lib/validation/email";
+import { INVALID_PHONE_MESSAGE, normalizePhoneNumber, validatePhoneNumber } from "@/lib/validation/phone";
 import { INVALID_US_STATE_MESSAGE, normalizeStateCode, validateStateCode } from "@/lib/validation/state";
 import { getSessionCookieToken } from "@/lib/session";
 
@@ -23,7 +24,17 @@ export const authRouter = router({
           password: z.string(),
           firstName: z.string().min(1),
           lastName: z.string().min(1),
-          phoneNumber: z.string().regex(/^\+?\d{10,15}$/),
+          // VAL-204: normalize to digits only; US or E.164 length rules (same as client).
+          phoneNumber: z
+            .string()
+            .trim()
+            .transform((s) => normalizePhoneNumber(s))
+            .pipe(
+              z
+                .string()
+                .min(1, { message: "Phone number is required" })
+                .refine(validatePhoneNumber, { message: INVALID_PHONE_MESSAGE })
+            ),
           dateOfBirth: z.string(),
           ssn: z.string().regex(/^\d{9}$/),
           address: z.string().min(1),

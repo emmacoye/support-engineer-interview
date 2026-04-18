@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 import { PASSWORD_RULES } from "@/lib/validation/password";
 import { validateEmail } from "@/lib/validation/email";
+import { INVALID_PHONE_MESSAGE, normalizePhoneNumber, validatePhoneNumber } from "@/lib/validation/phone";
 import { INVALID_US_STATE_MESSAGE, normalizeStateCode, validateStateCode } from "@/lib/validation/state";
 
 type SignupFormData = {
@@ -203,13 +204,15 @@ export default function SignupPage() {
                 <Input
                   {...register("phoneNumber", {
                     required: "Phone number is required",
-                    pattern: {
-                      value: /^\d{10}$/,
-                      message: "Phone number must be 10 digits",
+                    // VAL-204: strip formatting then require US or E.164-length international (same as server).
+                    validate: (value) => {
+                      const digits = normalizePhoneNumber(value ?? "");
+                      if (!digits) return "Phone number is required";
+                      return validatePhoneNumber(digits) ? true : INVALID_PHONE_MESSAGE;
                     },
                   })}
                   type="tel"
-                  placeholder="1234567890"
+                  placeholder="(212) 555-1234"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                 />
                 {errors.phoneNumber && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phoneNumber.message}</p>}

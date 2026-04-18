@@ -252,3 +252,19 @@ improvement opportunity.
 - [ ] "ZZ" is rejected
 - [ ] All 50 states and territories are accepted
 - [ ] Validation fires on both the form and the tRPC handler
+
+## VAL-204: Phone Number Format Validation
+**Priority**: Medium
+**Root Cause**: The phone number field only checked that the input was a non-empty string with no length, format, or international standard validation. Any string of numbers regardless of length or format was accepted, making it impossible to reliably contact customers.
+**Fix**: Added validation supporting US numbers (10 digits or 11 digits starting with 1) and international numbers (7-15 digits per E.164 standard). All formatting characters are stripped before validation and normalization. Phone numbers are stored as digits only in the DB.
+**Prevention**: Phone number fields should always validate against E.164 length standards at minimum. Storing normalized digits-only values in the DB avoids formatting inconsistencies and makes lookups reliable. If stricter validation is needed in future, libphonenumber-js is the industry standard library.
+
+## Pass Criteria
+- [ ] "2125551234" accepted (valid US 10 digit)
+- [ ] "12125551234" accepted (valid US 11 digit with country code)
+- [ ] "+44 20 7946 0958" accepted (valid UK international)
+- [ ] "123" rejected (too short)
+- [ ] "1234567890123456" rejected (too long, over 15 digits)
+- [ ] "(212) 555-1234" accepted after stripping formatting
+- [ ] Stored in DB as digits only "2125551234"
+- [ ] Validation fires on both the form and the tRPC handler

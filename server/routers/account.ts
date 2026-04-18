@@ -176,7 +176,8 @@ export const accountRouter = router({
           .select()
           .from(transactions)
           .where(eq(transactions.accountId, input.accountId))
-          .orderBy(desc(transactions.createdAt))
+          // PERF-404: newest first; id DESC tiebreaker when createdAt matches (deterministic order).
+          .orderBy(desc(transactions.createdAt), desc(transactions.id))
           .limit(1)
           .get(),
         db
@@ -216,7 +217,8 @@ export const accountRouter = router({
         .from(transactions)
         .innerJoin(accounts, eq(transactions.accountId, accounts.id))
         .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.user.id)))
-        .orderBy(desc(transactions.createdAt));
+        // PERF-404: reverse chronological list; id DESC tiebreaker for identical timestamps (SQLite order is not implicit).
+        .orderBy(desc(transactions.createdAt), desc(transactions.id));
 
       if (rows.length === 0) {
         const owned = await db

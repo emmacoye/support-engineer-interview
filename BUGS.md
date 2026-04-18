@@ -284,3 +284,15 @@ improvement opportunity.
 - [ ] "10.999" is rejected (too many decimal places)
 - [ ] "0" is rejected
 - [ ] Validation fires on both the form and the tRPC handler
+
+## PERF-404: Transaction Sorting Non-Deterministic
+**Priority**: Medium
+**Root Cause**: The transaction history query had no ORDER BY clause, causing the database to return rows in an undefined order that varied between queries. This made the transaction history appear random and unreliable.
+**Fix**: Added ORDER BY createdAt DESC with id DESC as a tiebreaker to all transaction queries. Sorting is applied at the DB level for consistency and performance. The tiebreaker ensures deterministic ordering even when multiple transactions share the same timestamp.
+**Prevention**: Any query returning a list that the user will read should always have an explicit ORDER BY. Never rely on database insertion order — it is not guaranteed. Use a tiebreaker column like id whenever timestamps could collide.
+
+## Pass Criteria
+- [ ] Fund an account 5 times and confirm transactions appear newest first
+- [ ] Refresh the page and confirm order is consistent across page loads
+- [ ] Two transactions with identical timestamps are ordered by id descending
+- [ ] Sorting is applied in the DB query not the client

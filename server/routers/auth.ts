@@ -10,6 +10,7 @@ import { decryptSSN, encryptSSN } from "@/lib/crypto";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 import { validatePassword } from "@/lib/validation/password";
 import { zodEmail } from "@/lib/validation/email";
+import { INVALID_US_STATE_MESSAGE, normalizeStateCode, validateStateCode } from "@/lib/validation/state";
 import { getSessionCookieToken } from "@/lib/session";
 
 export const authRouter = router({
@@ -27,7 +28,18 @@ export const authRouter = router({
           ssn: z.string().regex(/^\d{9}$/),
           address: z.string().min(1),
           city: z.string().min(1),
-          state: z.string().length(2).toUpperCase(),
+          // VAL-203: must be a real US state/territory code; normalize to uppercase before persistence.
+          state: z
+            .string()
+            .trim()
+            .transform((s) => normalizeStateCode(s))
+            .pipe(
+              z
+                .string()
+                .length(2, { message: "State must be exactly 2 letters" })
+                .regex(/^[A-Z]{2}$/, { message: "State must be exactly 2 letters" })
+                .refine(validateStateCode, { message: INVALID_US_STATE_MESSAGE })
+            ),
           zipCode: z.string().regex(/^\d{5}$/),
         })
         // VAL-202: enforce DOB boundaries server-side (never trust client).

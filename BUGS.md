@@ -236,3 +236,19 @@ improvement opportunity.
 - [ ] If DB deletion fails an error is returned to the client, not a false success
 - [ ] Cookie is not cleared if DB deletion fails
 - [ ] User is redirected to login after successful logout
+
+## VAL-203: State Code Validation
+**Priority**: Medium
+**Root Cause**: The state code field only validated that the input was a 2 character string, with no check against the actual list of valid US state and territory codes. Any 2 letter combination including invalid codes like "XX" or "ZZ" was accepted.
+**Fix**: Added validation against a complete set of valid US state and territory codes including all 50 states, DC, and US territories. Input is normalized to uppercase before validation so lowercase entries like "ca" are accepted. Validation is enforced on both client and server.
+**Prevention**: Any field with a fixed set of valid values should always be validated against that set explicitly. Using a Set for lookup is O(1) and more reliable than regex for enumerated values. Include US territories in state validation — banking customers can live in Puerto Rico, Guam, and other territories.
+
+## Pass Criteria
+- [ ] "XX" is rejected with a clear error message
+- [ ] "CA" is accepted
+- [ ] "ca" is accepted after normalization to "CA"
+- [ ] "DC" is accepted
+- [ ] "PR" is accepted (Puerto Rico)
+- [ ] "ZZ" is rejected
+- [ ] All 50 states and territories are accepted
+- [ ] Validation fires on both the form and the tRPC handler

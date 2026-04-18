@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { dobErrorMessage, validateDob } from "@/lib/validation/dob";
 import { PASSWORD_RULES } from "@/lib/validation/password";
 import { validateEmail } from "@/lib/validation/email";
+import { INVALID_US_STATE_MESSAGE, normalizeStateCode, validateStateCode } from "@/lib/validation/state";
 
 type SignupFormData = {
   email: string;
@@ -288,9 +289,13 @@ export default function SignupPage() {
                   <Input
                     {...register("state", {
                       required: "State is required",
-                      pattern: {
-                        value: /^[A-Z]{2}$/,
-                        message: "Use 2-letter state code",
+                      // VAL-203: uppercase-normalize then require a real US state/territory (same as server Zod).
+                      validate: (value) => {
+                        const code = normalizeStateCode(value ?? "");
+                        if (!/^[A-Z]{2}$/.test(code)) {
+                          return "State must be exactly 2 letters";
+                        }
+                        return validateStateCode(code) ? true : INVALID_US_STATE_MESSAGE;
                       },
                     })}
                     type="text"
